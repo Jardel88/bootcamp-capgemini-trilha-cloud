@@ -403,6 +403,10 @@ Use o IAM para gerenciar o acesso aos recursos da AWS
 
 * Um recurso é uma entidade em uma conta da AWS com a qual você pode trabalhar
 * Exemplo de recursos: Uma instância do Amazon EC2 ou um Bucket do S3
+* Controlar de modo seguro o acesso individual e de grupo aos seus recursos da AWS
+* Integração a outros serviços AWSGerenciamento de identidade federado
+* Permissões granulares
+* Suporte a autenticação multifator
   
 Controle quem pode encerrar instâncias do Amazon EC2
 
@@ -416,7 +420,115 @@ O IAM é um recurso da conta AWS gratuito
 
 Componentes essenciais
 
-* Usuário de IAM: Uma pessoa ou aplicativo que pode se autenticar com uma conta da AWS
+* Usuário de IAM: Definido na sua conta AWS. Use credenciais para autenticar programaticamente ou pelo console de gerenciamento AWS.
 * Grupo do IAM: Uma coleção de usuários do IAM que recebem autorização idêntica
 * Política do IAM: Documento que define quais recursos podem ser acessados e o nível de acesso a cada recurso
-* Função do IAM: Mecanismo útil para conceder um conjunto de permissões para fazer solicitações de serviço da AWS
+* Função do IAM: Mecanismo que concede acesso temporário para fazer solicitações de serviço da AWS. Pode ser assumida por uma pessoa, aplicação ou serviço.
+
+Grupos IAM
+
+Um grupo IAM é um agrupamento de vários usuários.
+Dessa forma você consegue especificar permissões para múltiplos usuários ao mesmo tempo, facilitando o gerenciamento de permissões.
+
+Um usuário pode fazer parte de vários grupos.
+
+Não é possível ter um grupo dentro de outro grupo.
+
+É importante destacar que os usuários possuem suas próprias permissões individualmente, quando ele é adicionado no grupo, ele passa a ter as permissoões do grupo mais suas próprias permissões.
+
+Um melhor gerenciamento é mover os usuários para grupos apropriados, ao invés de ficar alterando permissões individualmente.
+
+Políticas do IAM
+
+Você gerencia permissões para usuários do IAM, grupos e roles através da criação de policies e associando as mesmas ao usuário, grupo ou role.
+
+Políticas gerenciadas
+
+São policies standalone que voc~e associa a multiplos usuários, grupos ou rolesna sua conta.
+
+As políticas gerenciadas podem ser "AWS MANAGED" ou "COSTUMER MANAGED".
+
+Políticas inline
+
+Policies da qual você cria e gerencia, são associadas diretamente a um único usuário, grupo ou role.
+
+Estrutura:
+
+~~~
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "effect",
+    "Action": "action",
+    "Resource": "arn",
+    "Condition": {
+      "condition": {
+        "Key": "value"
+      }
+    }
+  }]
+}
+~~~
+
+* Efeito: O efeito pode ser permitido ou negado
+* Ação: Tipo de acesso permitido ou negado
+  * "action": "s3:getobject"
+* Recursos: Recursos em que a ação atuará
+  * "resource": "arn:aws:sqs:us-west-2:123456789012:queue1"
+* Condição: Condições que devem ser atendidas para que a regra seja aplicada
+  
+~~~ 
+"condition": {
+  "stringequals": {
+    "aws:username": "johndoe"
+  }
+}
+~~~
+
+ARN e Curingas
+
+Os recursos são identificados usando o formato Amazon Resource Name(ARN)
+
+* Sintaxe - arn:partition:service:region:account:resource
+* Exemplo - "Recurso": "arn:aws:iam::123456789012:user/mmajor"
+  
+Você pode usar um curinga(*) para dar acesso a todas as ações para um serviço específico da AWS
+
+Exemplos:
+
+* "Action": "s3:*"
+* "Action": "iam:*AccessKey*"
+
+Policy Generator
+
+Você pode gerar sua Policy de maneira facilitada através do serviço policy generator da AWS
+
+<https://awspolicygen.s3.amazonaws.com/policygen.html>
+
+Exemplo gerado:
+
+~~~
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1698692224501",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+~~~
+
+IAM Roles
+
+Uma role é similar a um usuário, ou seja, na role possui policies com permissões com o que pode ou não ser feito com aquela role.
+
+Porém ao invés de ficar associado a uma única pessoa, ela pode ser assumida por qualquer um.
+
+Uma role não possui credenciais associadas a ela, as credenciais são criadas automaticamente e temporariamente, sempre de preferência para utilizar roles do que credenciais.
+
