@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Stack para provisionar uma app na subnet com exemplo de referencia em outra stack"
+
+# Esse template cria:
+# Amazon EC2 instance
+# Security group
+
+############
+# Parameters
+############
+
+Parameters:
+  NetworkStackName:
+    Description: "Nome da stack do Cloudformation com os recursos de rede"
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: '^[a-zA-Z][-a-zA-Z0-9]*$'
+    Default: NetworkVPC
+
+  AmazonLinuxAMIID:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+##############
+# Resource section
+##############
+
+Resources:
+
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Metadata: 
+      'AWS::CloudFormation::Init':
+        configSets:
+          All:
+            - ConfigureSampleApp
+        ConfigureSampleApp:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content:
+                <img src="https://s3.amazonaws.com/cloudformations-examples/clouformation-graphic.png" alt="AWS Cloudformation logo"/>
+                <h1>Parabéns!!! você conseguiu subir uma aplicação através do Cloudformation.</h1>
+              mode: 000644
+              owner: apache
+              group: apache
+          services:
+            sysvinit:
+              httpd:
+                enable: true
+                ensureRunning: true
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref AmazonLinuxAMIID
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref  WebServerSecurityGroup
+          AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          DeleteOnTermination: true
+          SubnetId: 
+            Fn::ImportValue:
+              !Sub us-east-1-${NetworkStackName}-PublicSubnet0
+      Tags:
+        - Key: Name
+          Value: Web Server
+      UserData:
+        Fn::Base64: !Sub  |
+          #!/bin/bash -xe
+          yum update -y aws-cfn-bootstrap
+          # Install the files and packages from the metadata
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebServerInstance --configsets All --region ${AWS::Region}
+          # Signal the status from cfn-init
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WebServerInstance --region ${AWS::Region}
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+  
+  DiskVolume:
+    Type: AWS::EC2::Volume
+    Properties: 
+      Size: 100
+      AvailabilityZone: !GetAtt WebServerInstance.AvailabilityZone
+      Tags:
+        - Key: Name
+          Value: Web Data
+    DeletionPolicy: Snapshot
+
+  DiskMountPoint:
+    Type: AWS::EC2::VolumeAttachement
+    Properties: 
+      InstanceId: !Ref WebServerInstance
+      VolumeId: !Ref DiskVolume
+      Device: /dev/sdh
+
+  WebServerSercurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP ingress
+      VpcId:
+        Fn::ImportValue:
+          !Sub us-east-1-${NetworkStackName}-VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Web Server Security Group
+
+#############
+# Output Section
+#############
+
+Outputs:
+  URL:
+    Description: URL of the sample website
+    Value: !Sub 'http://${WebServerInstance.PublicDnsName}'
+
+
