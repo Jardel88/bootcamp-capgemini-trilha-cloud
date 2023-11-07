@@ -1,0 +1,1 @@
+bucket_name = ["ed-my-bucket", "my-ed-bucket"]
